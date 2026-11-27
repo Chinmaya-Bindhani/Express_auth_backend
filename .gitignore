@@ -11,3 +11,8 @@ wheels/
 .env
 base
 local
+
+
+# IDE configuration
+.idea/
+.vscode/
