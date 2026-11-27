@@ -58,7 +58,7 @@ jobs:
           DEBUG: ${{ secrets.DEBUG }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
-          DJANGO_ALLOWED_HOSTS: ${{ vars.DJANGO_ALLOWED_HOSTS }}
+          DJANGO_ALLOWED_HOSTS: ${{ secrets.DJANGO_ALLOWED_HOSTS }}
           DJANGO_SETTINGS_MODULE: config.settings.Prod
         run: |
           set -euo pipefail
