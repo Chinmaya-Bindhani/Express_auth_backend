@@ -1,0 +1,86 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [express_auth, main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: python -m pip install -r requirements.txt
+      - run: python manage.py check
+      - run: python manage.py test
+
+  publish:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            dockerchinmaya/express-auth-img:1
+            dockerchinmaya/express-auth-img:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [ci, publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - name: Deploy image on EC2
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          DEBUG: ${{ secrets.DEBUG }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_ALLOWED_HOSTS: ${{ vars.DJANGO_ALLOWED_HOSTS }}
+          DJANGO_SETTINGS_MODULE: config.settings.Prod
+        run: |
+          set -euo pipefail
+          image="dockerchinmaya/express-auth-img:${IMAGE_TAG}"
+          docker pull "$image"
+
+          docker run --rm \
+            -e DEBUG \
+            -e DATABASE_URL \
+            -e DJANGO_SECRET_KEY \
+            -e DJANGO_ALLOWED_HOSTS \
+            -e DJANGO_SETTINGS_MODULE \
+            "$image" python manage.py migrate --noinput
+
+          docker rm -f auth-container 2>/dev/null || true
+          docker run -d \
+            --name auth-container \
+            --restart unless-stopped \
+            -e DEBUG \
+            -e DATABASE_URL \
+            -e DJANGO_SECRET_KEY \
+            -e DJANGO_ALLOWED_HOSTS \
+            -e DJANGO_SETTINGS_MODULE \
+            -p 80:8000 \
+            "$image"
