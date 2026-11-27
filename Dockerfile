@@ -5,7 +5,6 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install dependencies before copying code so Docker can reuse this layer.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt gunicorn==27.0.1
 
